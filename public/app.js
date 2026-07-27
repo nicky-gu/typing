@@ -3,20 +3,43 @@
 const PROGRESS_KEY = 'typing_progress_v1';
 
 const KB_ROWS = [
+  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
   ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
   ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
   ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
 ];
 
-// 每个键对应的手指（标准指法）
+// 数字行下方的常用符号（小键盘提示用）
+const KB_SYMBOLS = [',', '.', "'", '"', ';', ':', '?', '!', '(', ')', '[', ']', '-', '=', '@', '#'];
+
+// 每个键对应的手指（标准指法，传统 QWERTY 英文键盘）
 const FINGER = {
+  // 字母
   a: '左手小指', s: '左无名指', d: '左中指', f: '左食指', g: '左食指',
   q: '左小指', w: '左无名指', e: '左中指', r: '左食指', t: '左食指',
   z: '左小指', x: '左无名指', c: '左中指', v: '左食指', b: '左食指',
   ';': '右手小指', l: '右无名指', k: '右中指', j: '右食指', h: '右食指',
   p: '右小指', o: '右无名指', i: '右中指', u: '右食指', y: '右食指',
-  m: '右食指', n: '右食指', ' ': '大拇指',
+  m: '右食指', n: '右食指',
+  // 数字（与上方符号同键，手指一致）
+  '1': '左手小指', '2': '左无名指', '3': '左中指', '4': '左食指', '5': '左食指',
+  '6': '右食指', '7': '右食指', '8': '右中指', '9': '右无名指', '0': '右小指',
+  // 常用符号
+  ',': '右食指', '.': '右食指', '/': '右食指', "'": '右手小指', '[': '右小指',
+  ']': '右小指', '(': '右小指', ')': '右小指', '-': '右小指', '=': '右小指',
+  ':': '右小指', '?': '右食指', '"': '右手小指', '{': '右小指', '}': '右小指',
+  '+': '右小指',
+  '!': '左手小指', '@': '左无名指', '#': '左中指', '$': '左食指', '%': '左食指',
+  '^': '右食指', '&': '右食指', '*': '右中指', ' ': '大拇指',
 };
+
+// 取字符对应的手指提示（大写字母提示需按 Shift）
+function fingerFor(ch) {
+  if (ch >= 'A' && ch <= 'Z') {
+    return 'Shift + ' + (FINGER[ch.toLowerCase()] || '任意手指');
+  }
+  return FINGER[ch] || '任意手指';
+}
 
 const state = {
   view: 'home',
@@ -119,8 +142,10 @@ function renderHome() {
     card.dataset.level = lv.id;
     const earned = '★'.repeat(p.stars);
     const empty = '☆'.repeat(3 - p.stars);
+    const badge = lv.random ? '<div class="lv-badge">🎲 随机</div>' : '';
     card.innerHTML =
       '<div class="lv-title">' + lv.title + '</div>' +
+      badge +
       '<div class="lv-desc">' + lv.desc + '</div>' +
       '<div class="lv-stars">' + earned + empty + '</div>' +
       '<div class="lv-best">最佳 ' + p.bestWpm + ' WPM · ' + p.bestAcc + '%</div>';
@@ -159,8 +184,18 @@ function startLevel(levelId) {
 }
 
 function advanceText() {
-  state.textIndex = (state.textIndex + 1) % state.level.texts.length;
-  state.text = state.level.texts[state.textIndex];
+  const texts = state.level.texts;
+  let idx;
+  if (state.level.random) {
+    // 随机练习：随机抽取（尽量不与当前段重复）
+    do {
+      idx = Math.floor(Math.random() * texts.length);
+    } while (texts.length > 1 && idx === state.textIndex);
+  } else {
+    idx = (state.textIndex + 1) % texts.length;
+  }
+  state.textIndex = idx;
+  state.text = texts[idx];
   state.typed = [];
   renderText();
 }
@@ -201,13 +236,14 @@ function updateMetrics() {
 
 function highlightKey(key) {
   const keys = document.querySelectorAll('#keyboard .key');
-  keys.forEach((k) => k.classList.remove('active'));
-  if (key != null) {
-    const el = document.querySelector('#keyboard .key[data-key="' + key + '"]');
-    if (el) el.classList.add('active');
-  }
+  const base = key == null ? null
+    : (key >= 'A' && key <= 'Z' ? key.toLowerCase() : key);
+  keys.forEach((k) => {
+    k.classList.remove('active');
+    if (base != null && k.dataset.key === base) k.classList.add('active');
+  });
   const hint = document.getElementById('finger-hint');
-  hint.textContent = key != null ? '用：' + (FINGER[key] || '任意手指') : '';
+  hint.textContent = key != null ? '用：' + fingerFor(key) : '';
 }
 
 // ---------- 计时器（限时模式） ----------
@@ -290,6 +326,16 @@ function buildKeyboard() {
     });
     kb.appendChild(r);
   });
+  const symRow = document.createElement('div');
+  symRow.className = 'kb-row';
+  KB_SYMBOLS.forEach((k) => {
+    const b = document.createElement('div');
+    b.className = 'key';
+    b.dataset.key = k;
+    b.textContent = k;
+    symRow.appendChild(b);
+  });
+  kb.appendChild(symRow);
   const spaceRow = document.createElement('div');
   spaceRow.className = 'kb-row';
   const sp = document.createElement('div');

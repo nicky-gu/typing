@@ -229,3 +229,13 @@ main {
 }
 .dur-btn:hover { border-color: var(--primary); }
 .dur-btn.active { background: var(--primary); color: #fff; border-color: var(--primary); }
+
+.lv-badge {
+  display: inline-block;
+  font-size: 12px;
+  color: #fff;
+  background: var(--accent);
+  border-radius: 999px;
+  padding: 2px 10px;
+  margin-bottom: 8px;
+}
