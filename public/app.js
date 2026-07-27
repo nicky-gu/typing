@@ -21,12 +21,17 @@ const FINGER = {
 const state = {
   view: 'home',
   level: null,
+  textIndex: 0,
   text: '',
   typed: [],
   startTime: null,
   endTime: null,
   finished: false,
   soundOn: true,
+  duration: 0,        // 秒；0 = 不限（打完本段即结束）
+  deadline: null,     // 限时模式的截止时间戳
+  timerId: null,
+  totals: { keystrokes: 0, correct: 0, errors: 0 },
 };
 
 let audioCtx = null;
@@ -74,21 +79,25 @@ function playKeySound(correct) {
   else beep(170, 0.12, 'square');
 }
 
-// ---------- 指标计算 ----------
-function computeMetrics() {
-  const typed = state.typed;
-  const text = state.text;
-  let correct = 0;
-  const n = Math.min(typed.length, text.length);
-  for (let i = 0; i < n; i++) {
-    if (typed[i] === text[i]) correct++;
-  }
-  const ms = state.startTime ? (state.endTime || Date.now()) - state.startTime : 0;
+// ---------- 时间格式化 ----------
+function fmtTime(sec) {
+  sec = Math.max(0, Math.round(sec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return m + ':' + (s < 10 ? '0' + s : s);
+}
+
+// ---------- 指标计算（整场累计） ----------
+function computeSessionMetrics() {
+  const keystrokes = state.totals.keystrokes;
+  const correct = state.totals.correct;
+  const errors = state.totals.errors;
+  const ms = state.startTime ? ((state.endTime || Date.now()) - state.startTime) : 0;
   const minutes = ms / 60000;
   const wpm = minutes > 0 ? Math.round((correct / 5) / minutes) : 0;
-  const acc = typed.length > 0 ? Math.round((correct / typed.length) * 100) : 100;
-  const errors = typed.length - correct;
-  return { wpm, acc, errors, correct, ms };
+  const acc = keystrokes > 0 ? Math.round((correct / keystrokes) * 100) : 100;
+  const errorRate = keystrokes > 0 ? Math.round((errors / keystrokes) * 100) : 0;
+  return { wpm, acc, errors, correct, keystrokes, ms, errorRate };
 }
 
 // ---------- 视图切换 ----------
@@ -128,20 +137,32 @@ function renderHome() {
 function startLevel(levelId) {
   const lv = LESSONS.find((l) => l.id === levelId);
   if (!lv) return;
+  stopTimer();
   state.level = lv;
-  state.text = lv.texts[Math.floor(Math.random() * lv.texts.length)];
+  state.textIndex = Math.floor(Math.random() * lv.texts.length);
+  state.text = lv.texts[state.textIndex];
   state.typed = [];
+  state.totals = { keystrokes: 0, correct: 0, errors: 0 };
   state.startTime = null;
   state.endTime = null;
   state.finished = false;
+  state.deadline = null;
   ensureAudio();
   document.getElementById('m-wpm').textContent = '0';
   document.getElementById('m-acc').textContent = '100%';
-  document.getElementById('m-time').textContent = '0s';
   document.getElementById('m-err').textContent = '0';
+  document.getElementById('m-time').textContent =
+    state.duration > 0 ? '剩 ' + fmtTime(state.duration) : '0s';
   renderText();
   showView('play');
   updateMetrics();
+}
+
+function advanceText() {
+  state.textIndex = (state.textIndex + 1) % state.level.texts.length;
+  state.text = state.level.texts[state.textIndex];
+  state.typed = [];
+  renderText();
 }
 
 function renderText() {
@@ -150,7 +171,7 @@ function renderText() {
   for (let i = 0; i < state.text.length; i++) {
     const span = document.createElement('span');
     const ch = state.text[i];
-    span.textContent = ch === ' ' ? ' ' : ch;
+    span.textContent = ch === ' ' ? ' ' : ch;
     if (i < state.typed.length) {
       span.className = state.typed[i] === ch ? 'correct' : 'wrong';
     } else if (i === state.typed.length) {
@@ -164,11 +185,18 @@ function renderText() {
 }
 
 function updateMetrics() {
-  const m = computeMetrics();
+  const m = computeSessionMetrics();
   document.getElementById('m-wpm').textContent = m.wpm;
   document.getElementById('m-acc').textContent = m.acc + '%';
   document.getElementById('m-err').textContent = m.errors;
-  document.getElementById('m-time').textContent = Math.floor(m.ms / 1000) + 's';
+  const tEl = document.getElementById('m-time');
+  if (state.duration > 0) {
+    const remain = state.deadline ? (state.deadline - Date.now()) / 1000 : state.duration;
+    tEl.textContent = '剩 ' + fmtTime(remain);
+  } else {
+    const ms = state.startTime ? Date.now() - state.startTime : 0;
+    tEl.textContent = Math.floor(ms / 1000) + 's';
+  }
 }
 
 function highlightKey(key) {
@@ -182,10 +210,33 @@ function highlightKey(key) {
   hint.textContent = key != null ? '用：' + (FINGER[key] || '任意手指') : '';
 }
 
-function finishLevel() {
+// ---------- 计时器（限时模式） ----------
+function startTimer() {
+  stopTimer();
+  state.deadline = Date.now() + state.duration * 1000;
+  state.timerId = setInterval(() => {
+    const remain = (state.deadline - Date.now()) / 1000;
+    if (remain <= 0) {
+      updateMetrics();
+      endSession();
+      return;
+    }
+    updateMetrics();
+  }, 250);
+}
+function stopTimer() {
+  if (state.timerId) {
+    clearInterval(state.timerId);
+    state.timerId = null;
+  }
+}
+
+function endSession() {
+  if (state.finished) return;
   state.finished = true;
   state.endTime = Date.now();
-  const m = computeMetrics();
+  stopTimer();
+  const m = computeSessionMetrics();
   const stars = m.acc >= 98 ? 3 : m.acc >= 92 ? 2 : m.acc >= 80 ? 1 : 0;
   const prog = loadProgress();
   const prev = prog.levels[state.level.id] || { bestWpm: 0, bestAcc: 0, stars: 0, plays: 0 };
@@ -203,12 +254,17 @@ function finishLevel() {
 
 function renderResult(m, stars) {
   showView('result');
+  document.getElementById('result-title').textContent =
+    state.duration > 0 ? '时间到！来看看成绩' : '完成啦！';
   const earned = '★'.repeat(stars);
   const empty = '☆'.repeat(3 - stars);
   document.getElementById('result-stars').textContent = earned + empty;
   document.getElementById('r-wpm').textContent = m.wpm;
   document.getElementById('r-acc').textContent = m.acc + '%';
-  document.getElementById('r-time').textContent = Math.floor(m.ms / 1000) + 's';
+  document.getElementById('r-errrate').textContent = m.errorRate + '%';
+  document.getElementById('r-time').textContent = fmtTime(m.ms / 1000);
+  document.getElementById('r-chars').textContent = m.correct;
+  document.getElementById('r-keys').textContent = m.keystrokes;
   document.getElementById('r-err').textContent = m.errors;
   let msg;
   if (stars === 3) msg = '太棒了！你已经是打字小勇士啦！';
@@ -253,20 +309,28 @@ window.addEventListener('keydown', (e) => {
     e.preventDefault();
     if (state.typed.length > 0) state.typed.pop();
     renderText();
-    updateMetrics();
     return;
   }
 
   if (e.key.length === 1) {
-    if (state.startTime === null) state.startTime = Date.now();
+    if (state.startTime === null) {
+      state.startTime = Date.now();
+      if (state.duration > 0) startTimer();
+    }
     const expected = state.text[state.typed.length];
     const correct = e.key === expected;
     state.typed.push(e.key);
+    state.totals.keystrokes++;
+    if (correct) state.totals.correct++;
+    else state.totals.errors++;
     e.preventDefault();
     playKeySound(correct);
     renderText();
     updateMetrics();
-    if (state.typed.length >= state.text.length) finishLevel();
+    if (state.typed.length >= state.text.length) {
+      if (state.duration > 0) advanceText();
+      else endSession();
+    }
   }
 });
 
@@ -288,7 +352,18 @@ function init() {
     }
   });
 
-  document.getElementById('back-btn').addEventListener('click', () => renderHome());
+  document.getElementById('back-btn').addEventListener('click', () => {
+    stopTimer();
+    renderHome();
+  });
+
+  document.querySelectorAll('.dur-btn').forEach((b) => {
+    b.addEventListener('click', () => {
+      document.querySelectorAll('.dur-btn').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      state.duration = parseInt(b.dataset.dur, 10) || 0;
+    });
+  });
 
   document.getElementById('level-grid').addEventListener('click', (e) => {
     const card = e.target.closest('.level-card');
@@ -296,7 +371,10 @@ function init() {
   });
 
   document.getElementById('retry-btn').addEventListener('click', () => startLevel(state.level.id));
-  document.getElementById('home-btn').addEventListener('click', () => renderHome());
+  document.getElementById('home-btn').addEventListener('click', () => {
+    stopTimer();
+    renderHome();
+  });
 }
 
 document.addEventListener('DOMContentLoaded', init);
