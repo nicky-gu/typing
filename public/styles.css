@@ -239,3 +239,51 @@ main {
   padding: 2px 10px;
   margin-bottom: 8px;
 }
+
+/* ---------- 课前教材（小课堂） ---------- */
+.lesson-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 22px;
+  box-shadow: 0 3px 16px rgba(0, 0, 0, 0.06);
+  animation: pop 0.3s ease;
+}
+.lesson-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.lesson-head .btn-ghost { background: #eef2f7; color: var(--text); }
+.lesson-head .btn-ghost:hover { background: #e2e8f0; }
+.lesson-tag {
+  font-size: 13px;
+  font-weight: 700;
+  color: #fff;
+  background: var(--green);
+  border-radius: 999px;
+  padding: 4px 12px;
+}
+.lesson-title { font-size: 22px; margin: 6px 0 16px; }
+.lesson-block {
+  background: #f7fbfe;
+  border: 1px solid #e6eef6;
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+.lb-label { font-size: 14px; font-weight: 700; color: var(--primary-d); margin-bottom: 8px; }
+.lb-body { font-size: 15px; line-height: 1.7; color: var(--text); white-space: pre-wrap; }
+.lb-example {
+  font-family: "Courier New", monospace;
+  font-size: 22px;
+  line-height: 1.6;
+  color: var(--primary-d);
+  background: #fff;
+  border-radius: 10px;
+  padding: 12px 14px;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.key.focus { border-color: var(--green); background: #eafaef; transform: translateY(-2px); }
+.lesson-start { width: 100%; margin-top: 4px; padding: 14px; font-size: 16px; }

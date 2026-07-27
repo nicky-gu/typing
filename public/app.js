@@ -55,6 +55,7 @@ const state = {
   deadline: null,     // 限时模式的截止时间戳
   timerId: null,
   totals: { keystrokes: 0, correct: 0, errors: 0 },
+  lessonLevelId: null,
 };
 
 let audioCtx = null;
@@ -127,6 +128,7 @@ function computeSessionMetrics() {
 function showView(name) {
   state.view = name;
   document.getElementById('home-view').hidden = name !== 'home';
+  document.getElementById('lesson-view').hidden = name !== 'lesson';
   document.getElementById('play-view').hidden = name !== 'play';
   document.getElementById('result-view').hidden = name !== 'result';
 }
@@ -157,6 +159,56 @@ function renderHome() {
   document.getElementById('home-stats').textContent =
     '累计练习 ' + mins + ' 分钟 · 完成 ' + sessions + ' 次';
   showView('home');
+}
+
+// ---------- 课前教材（小课堂） ----------
+function buildLessonKeyboard(focus) {
+  const kb = document.getElementById('lesson-keyboard');
+  kb.innerHTML = '';
+  const focusSet = new Set(focus || []);
+  const renderRow = (row) => {
+    const r = document.createElement('div');
+    r.className = 'kb-row';
+    row.forEach((k) => {
+      const b = document.createElement('div');
+      b.className = 'key' + (focusSet.has(k) ? ' focus' : '');
+      b.dataset.key = k;
+      b.textContent = k === ' ' ? '空格' : k;
+      r.appendChild(b);
+    });
+    kb.appendChild(r);
+  };
+  KB_ROWS.forEach(renderRow);
+  const symRow = document.createElement('div');
+  symRow.className = 'kb-row';
+  KB_SYMBOLS.forEach((k) => {
+    const b = document.createElement('div');
+    b.className = 'key' + (focusSet.has(k) ? ' focus' : '');
+    b.dataset.key = k;
+    b.textContent = k;
+    symRow.appendChild(b);
+  });
+  kb.appendChild(symRow);
+  const spaceRow = document.createElement('div');
+  spaceRow.className = 'kb-row';
+  const sp = document.createElement('div');
+  sp.className = 'key space' + (focusSet.has(' ') ? ' focus' : '');
+  sp.dataset.key = ' ';
+  sp.textContent = '空格';
+  spaceRow.appendChild(sp);
+  kb.appendChild(spaceRow);
+}
+
+function showLesson(levelId) {
+  const lv = LESSONS.find((l) => l.id === levelId);
+  if (!lv) return;
+  state.lessonLevelId = levelId;
+  document.getElementById('lesson-title').textContent = lv.title;
+  document.getElementById('lesson-goal').textContent = (lv.material && lv.material.goal) || '';
+  document.getElementById('lesson-tip').textContent = (lv.material && lv.material.tip) || '';
+  document.getElementById('lesson-example').textContent = (lv.material && lv.material.example) || '';
+  buildLessonKeyboard(lv.focus);
+  showView('lesson');
 }
 
 function startLevel(levelId) {
@@ -413,7 +465,12 @@ function init() {
 
   document.getElementById('level-grid').addEventListener('click', (e) => {
     const card = e.target.closest('.level-card');
-    if (card) startLevel(card.dataset.level);
+    if (card) showLesson(card.dataset.level);
+  });
+
+  document.getElementById('lesson-back').addEventListener('click', () => renderHome());
+  document.getElementById('lesson-start').addEventListener('click', () => {
+    if (state.lessonLevelId) startLevel(state.lessonLevelId);
   });
 
   document.getElementById('retry-btn').addEventListener('click', () => startLevel(state.level.id));

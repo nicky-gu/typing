@@ -30,6 +30,33 @@
       <div id="level-grid" class="level-grid"></div>
     </section>
 
+    <section id="lesson-view" class="view" hidden>
+      <div class="lesson-card">
+        <div class="lesson-head">
+          <button id="lesson-back" class="btn-ghost">返回</button>
+          <span class="lesson-tag">课前小课堂</span>
+        </div>
+        <h2 id="lesson-title" class="lesson-title"></h2>
+        <div class="lesson-block">
+          <div class="lb-label">🎯 学习目标</div>
+          <div id="lesson-goal" class="lb-body"></div>
+        </div>
+        <div class="lesson-block">
+          <div class="lb-label">👆 指法要点</div>
+          <div id="lesson-tip" class="lb-body"></div>
+        </div>
+        <div class="lesson-block">
+          <div class="lb-label">✍️ 先看看示范</div>
+          <div id="lesson-example" class="lb-example"></div>
+        </div>
+        <div class="lesson-block">
+          <div class="lb-label">⌨️ 这一关要练的键（绿色高亮）</div>
+          <div id="lesson-keyboard" class="keyboard"></div>
+        </div>
+        <button id="lesson-start" class="btn-primary lesson-start">我学会啦，开始练习 →</button>
+      </div>
+    </section>
+
     <section id="play-view" class="view" hidden>
       <div class="metric-bar">
         <button id="back-btn" class="btn-ghost">返回</button>
