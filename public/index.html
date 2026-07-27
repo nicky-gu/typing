@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>打字小勇士 · 小学生英文打字练习</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">打字小勇士</div>
+    <div class="toolbar">
+      <button id="sound-toggle" class="btn-ghost">声音：开</button>
+      <button id="reset-btn" class="btn-ghost">重置进度</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="home-view" class="view">
+      <h2 class="welcome">选一个关卡开始吧！</h2>
+      <div id="home-stats" class="home-stats"></div>
+      <div id="level-grid" class="level-grid"></div>
+    </section>
+
+    <section id="play-view" class="view" hidden>
+      <div class="metric-bar">
+        <button id="back-btn" class="btn-ghost">返回</button>
+        <div class="metric"><span class="m-label">速度</span><span id="m-wpm" class="m-val">0</span><span class="m-unit">WPM</span></div>
+        <div class="metric"><span class="m-label">正确率</span><span id="m-acc" class="m-val">100%</span></div>
+        <div class="metric"><span class="m-label">用时</span><span id="m-time" class="m-val">0s</span></div>
+        <div class="metric"><span class="m-label">错误</span><span id="m-err" class="m-val">0</span></div>
+      </div>
+      <div id="text-display" class="text-display"></div>
+      <div id="finger-hint" class="finger-hint"></div>
+      <div id="keyboard" class="keyboard"></div>
+    </section>
+
+    <section id="result-view" class="view" hidden>
+      <div class="result-card">
+        <h2 id="result-title">完成啦！</h2>
+        <div id="result-stars" class="stars"></div>
+        <div class="result-metrics">
+          <div><span class="m-label">速度</span><span id="r-wpm" class="m-val">0</span> WPM</div>
+          <div><span class="m-label">正确率</span><span id="r-acc" class="m-val">0%</span></div>
+          <div><span class="m-label">用时</span><span id="r-time" class="m-val">0s</span></div>
+          <div><span class="m-label">错误</span><span id="r-err" class="m-val">0</span></div>
+        </div>
+        <p id="result-msg" class="result-msg"></p>
+        <div class="result-actions">
+          <button id="retry-btn" class="btn-primary">再练一次</button>
+          <button id="home-btn" class="btn-ghost dark">返回选关</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="lessons.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
