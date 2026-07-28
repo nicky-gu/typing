@@ -424,8 +424,10 @@ function renderResult(m, stars) {
 function applyKbVisibility() {
   const area = document.getElementById('kb-area');
   if (area) area.style.display = state.kbVisible ? '' : 'none';
-  const btn = document.getElementById('kb-toggle');
-  if (btn) btn.textContent = '键盘：' + (state.kbVisible ? '显示' : '隐藏');
+  const lk = document.getElementById('lesson-keyboard');
+  if (lk) lk.style.display = state.kbVisible ? '' : 'none';
+  const chk = document.getElementById('kb-hide-check');
+  if (chk) chk.checked = !state.kbVisible; // 勾选 = 隐藏
 }
 
 // ---------- 趋势线 ----------
@@ -585,10 +587,10 @@ function init() {
     }
   });
 
-  const kbToggle = document.getElementById('kb-toggle');
-  if (kbToggle) {
-    kbToggle.addEventListener('click', () => {
-      state.kbVisible = !state.kbVisible;
+  const kbHideChk = document.getElementById('kb-hide-check');
+  if (kbHideChk) {
+    kbHideChk.addEventListener('change', () => {
+      state.kbVisible = !kbHideChk.checked; // 勾选 = 隐藏
       try { localStorage.setItem(KB_VISIBLE_KEY, state.kbVisible ? '1' : '0'); } catch (e) {}
       applyKbVisibility();
     });
