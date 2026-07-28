@@ -293,7 +293,7 @@ main {
 .key.bump::after {
   content: '';
   position: absolute;
-  top: 7px;
+  bottom: 7px;
   left: 50%;
   transform: translateX(-50%);
   width: 16px;
