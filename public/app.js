@@ -64,22 +64,37 @@ const state = {
   totals: { keystrokes: 0, correct: 0, errors: 0 },
   lessonLevelId: null,
   kbVisible: true,
+  charSpans: null,   // 打字区逐字符 span 缓存（renderText 增量更新用）
+  renderedText: null,
+  keyEls: null,      // 屏幕键盘 .key 列表缓存（避免每次按键全量 querySelectorAll）
 };
 
 let audioCtx = null;
 
 // ---------- 进度（本地优先） ----------
+let storageWarned = false;
+function warnStorage(e) {
+  if (storageWarned) return;
+  storageWarned = true;
+  try { console.warn('本地进度保存失败（可能是隐私模式或存储已满）', e); } catch (_) {}
+}
+
 function loadProgress() {
+  let p = null;
   try {
-    return JSON.parse(localStorage.getItem(PROGRESS_KEY)) || { levels: {} };
+    p = JSON.parse(localStorage.getItem(PROGRESS_KEY)) || { levels: {} };
   } catch (e) {
-    return { levels: {} };
+    p = { levels: {} };
   }
+  // 版本迁移占位：将来新增字段时在此做 v1→v2… 升级，老数据不丢
+  if (!p.version) p.version = 1;
+  if (!p.levels) p.levels = {};
+  return p;
 }
 function saveProgress(p) {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
-  } catch (e) { /* 忽略写入失败 */ }
+  } catch (e) { warnStorage(e); }
 }
 
 // 趋势线：每次完成的练习记录
@@ -95,7 +110,7 @@ function saveSession(rec) {
   arr.push(rec);
   try {
     localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr.slice(-100)));
-  } catch (e) { /* 忽略写入失败 */ }
+  } catch (e) { warnStorage(e); }
 }
 
 // ---------- 音效（Web Audio，无外部资源） ----------
@@ -115,11 +130,15 @@ function beep(freq, dur, type) {
   const g = audioCtx.createGain();
   o.type = type || 'sine';
   o.frequency.value = freq;
-  g.gain.value = 0.05;
+  const t = audioCtx.currentTime;
+  // 音量包络：快速起音后自然指数衰减，避免快速连打时的爆音感
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(0.06, t + 0.005);
+  g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
   o.connect(g);
   g.connect(audioCtx.destination);
-  o.start();
-  o.stop(audioCtx.currentTime + dur);
+  o.start(t);
+  o.stop(t + dur + 0.02);
 }
 function playKeySound(correct) {
   ensureAudio();
@@ -143,9 +162,10 @@ function computeSessionMetrics() {
   const ms = state.startTime ? ((state.endTime || Date.now()) - state.startTime) : 0;
   const minutes = ms / 60000;
   const wpm = minutes > 0 ? Math.round((correct / 5) / minutes) : 0;
+  const cpm = minutes > 0 ? Math.round(correct / minutes) : 0; // 每分钟正确字符（对小学生更直观）
   const acc = keystrokes > 0 ? Math.round((correct / keystrokes) * 100) : 100;
   const errorRate = keystrokes > 0 ? Math.round((errors / keystrokes) * 100) : 0;
-  return { wpm, acc, errors, correct, keystrokes, ms, errorRate };
+  return { wpm, cpm, acc, errors, correct, keystrokes, ms, errorRate };
 }
 
 // ---------- 视图切换 ----------
@@ -296,23 +316,55 @@ function advanceText() {
   renderText();
 }
 
-function renderText() {
+// 打字区渲染：按词包裹成块（英文单词整体感更好），字符逐个着色；支持增量更新
+function buildTextSpans() {
   const c = document.getElementById('text-display');
   c.innerHTML = '';
+  state.charSpans = [];
+  let word = null;
   for (let i = 0; i < state.text.length; i++) {
-    const span = document.createElement('span');
     const ch = state.text[i];
-    span.textContent = ch === ' ' ? ' ' : ch;
-    if (i < state.typed.length) {
-      span.className = state.typed[i] === ch ? 'correct' : 'wrong';
-    } else if (i === state.typed.length) {
-      span.className = 'current';
+    const span = document.createElement('span');
+    span.className = 'ch';
+    span.textContent = ch;
+    if (ch === ' ') {
+      word = null;
+      c.appendChild(span);
     } else {
-      span.className = 'pending';
+      if (!word) {
+        word = document.createElement('span');
+        word.className = 'word';
+        c.appendChild(word);
+      }
+      word.appendChild(span);
     }
-    c.appendChild(span);
+    state.charSpans.push(span);
   }
-  highlightKey(state.text[state.typed.length] != null ? state.text[state.typed.length] : null);
+}
+
+function renderText() {
+  const c = document.getElementById('text-display');
+  // 文本或结构变化时重建，否则仅增量更新 class（避免长文每键全量重绘）
+  if (!state.charSpans || state.charSpans.length !== state.text.length || state.renderedText !== state.text) {
+    buildTextSpans();
+    state.renderedText = state.text;
+  }
+  const n = state.typed.length;
+  for (let i = 0; i < state.charSpans.length; i++) {
+    const span = state.charSpans[i];
+    if (i < n) {
+      span.className = 'ch ' + (state.typed[i] === state.text[i] ? 'correct' : 'wrong');
+    } else if (i === n) {
+      span.className = 'ch current';
+    } else {
+      span.className = 'ch pending';
+    }
+  }
+  const nextCh = state.text[n] != null ? state.text[n] : null;
+  // 无障碍：实时告知屏幕阅读器当前应输入字符
+  const cur = nextCh === ' ' ? '空格' : (nextCh == null ? '已完成' : nextCh);
+  c.setAttribute('aria-label', '打字练习区，当前应输入：' + cur);
+  highlightKey(nextCh);
 }
 
 function updateMetrics() {
@@ -331,7 +383,7 @@ function updateMetrics() {
 }
 
 function highlightKey(key) {
-  const keys = document.querySelectorAll('#keyboard .key');
+  const keys = state.keyEls || document.querySelectorAll('#keyboard .key');
   const base = key == null ? null
     : (key >= 'A' && key <= 'Z' ? key.toLowerCase() : key);
   keys.forEach((k) => {
@@ -361,7 +413,7 @@ const HAND_FINGERS = [
 ];
 
 function keyElementFor(key) {
-  const keys = document.querySelectorAll('#keyboard .key');
+  const keys = state.keyEls || document.querySelectorAll('#keyboard .key');
   for (const k of keys) {
     const dk = k.dataset.key || '';
     if (dk === key || dk.includes(key)) return k;
@@ -475,7 +527,7 @@ function endSession() {
   state.endTime = Date.now();
   stopTimer();
   const m = computeSessionMetrics();
-  const stars = m.acc >= 98 ? 3 : m.acc >= 92 ? 2 : m.acc >= 80 ? 1 : 0;
+  const stars = m.acc >= 98 ? 3 : m.acc >= 92 ? 2 : m.acc >= 85 ? 1 : 0;
   const prog = loadProgress();
   const prev = prog.levels[state.level.id] || { bestWpm: 0, bestAcc: 0, stars: 0, plays: 0 };
   prog.levels[state.level.id] = {
@@ -506,6 +558,7 @@ function renderResult(m, stars) {
   const empty = '☆'.repeat(3 - stars);
   document.getElementById('result-stars').textContent = earned + empty;
   document.getElementById('r-wpm').textContent = m.wpm;
+  document.getElementById('r-cpm').textContent = m.cpm;
   document.getElementById('r-acc').textContent = m.acc + '%';
   document.getElementById('r-errrate').textContent = m.errorRate + '%';
   document.getElementById('r-time').textContent = fmtTime(m.ms / 1000);
@@ -614,7 +667,18 @@ function buildKeyboard() {
   spaceRow.className = 'kb-row';
   spaceRow.appendChild(makeKeyEl(' '));
   kb.appendChild(spaceRow);
+  state.keyEls = Array.from(kb.querySelectorAll('.key'));
 }
+
+// ---------- 失焦保护：练习中切走窗口/失去焦点时显示遮罩，避免误触快捷键 ----------
+function setFocusOverlay(show) {
+  const ov = document.getElementById('focus-overlay');
+  if (ov) ov.hidden = !show;
+}
+
+window.addEventListener('blur', () => {
+  if (state.view === 'play' && !state.finished) setFocusOverlay(true);
+});
 
 // ---------- 输入处理 ----------
 window.addEventListener('keydown', (e) => {
@@ -715,6 +779,14 @@ function init() {
     stopTimer();
     renderHome();
   });
+
+  const focusOv = document.getElementById('focus-overlay');
+  if (focusOv) {
+    focusOv.addEventListener('click', () => {
+      setFocusOverlay(false);
+      window.focus();
+    });
+  }
 }
 
 document.addEventListener('DOMContentLoaded', init);

@@ -70,7 +70,12 @@
         <div class="metric"><span class="m-label">用时</span><span id="m-time" class="m-val">0s</span></div>
         <div class="metric"><span class="m-label">错误</span><span id="m-err" class="m-val">0</span></div>
       </div>
-      <div id="text-display" class="text-display"></div>
+      <div class="play-area">
+        <div id="text-display" class="text-display" role="textbox" aria-readonly="true" aria-label="打字练习区"></div>
+        <div id="focus-overlay" class="focus-overlay" hidden>
+          <div class="fo-msg">已暂停 · 点击此处继续打字</div>
+        </div>
+      </div>
       <div id="finger-hint" class="finger-hint"></div>
       <div id="kb-area">
         <div id="keyboard" class="keyboard"></div>
@@ -78,11 +83,12 @@
     </section>
 
     <section id="result-view" class="view" hidden>
-      <div class="result-card">
+      <div class="result-card" aria-live="polite">
         <h2 id="result-title">完成啦！</h2>
         <div id="result-stars" class="stars"></div>
         <div class="result-metrics">
           <div class="rm"><span class="m-label">平均速度</span><span id="r-wpm" class="m-val">0</span><span class="m-unit">WPM</span></div>
+          <div class="rm"><span class="m-label">每分钟正确字符</span><span id="r-cpm" class="m-val">0</span><span class="m-unit">CPM</span></div>
           <div class="rm"><span class="m-label">正确率</span><span id="r-acc" class="m-val">0%</span></div>
           <div class="rm"><span class="m-label">错误率</span><span id="r-errrate" class="m-val">0%</span></div>
           <div class="rm"><span class="m-label">总用时</span><span id="r-time" class="m-val">0s</span></div>

@@ -134,6 +134,8 @@ main {
   word-break: break-word;
   white-space: pre-wrap;
 }
+.text-display .word { display: inline-block; white-space: nowrap; margin-right: 0.45em; }
+.text-display .ch { display: inline-block; }
 .text-display .pending { color: #c3cdda; }
 .text-display .current {
   background: var(--accent);
@@ -148,6 +150,30 @@ main {
   background: var(--red);
   border-radius: 4px;
   padding: 0 1px;
+}
+
+/* 失焦保护遮罩 */
+.play-area { position: relative; }
+.focus-overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(244, 251, 255, 0.82);
+  backdrop-filter: blur(2px);
+  border-radius: var(--radius);
+  cursor: pointer;
+  z-index: 8;
+}
+.focus-overlay .fo-msg {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--primary-d);
+  background: var(--card);
+  padding: 12px 22px;
+  border-radius: 12px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
 }
 
 .finger-hint {
