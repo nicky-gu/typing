@@ -151,6 +151,9 @@ function showView(name) {
   document.getElementById('play-view').hidden = name !== 'play';
   document.getElementById('result-view').hidden = name !== 'result';
   document.getElementById('trend-view').hidden = name !== 'trend';
+  if (name === 'play' && state.kbVisible) {
+    requestAnimationFrame(() => requestAnimationFrame(positionFingers));
+  }
 }
 
 function renderHome() {
@@ -318,34 +321,105 @@ function highlightKey(key) {
   hint.textContent = key != null ? '用：' + fingerFor(key) : '';
   let fname = null;
   if (key != null && base != null) fname = FINGER[base] || null;
-  highlightHand(fname);
+  highlightHand(fname, base);
 }
 
-// ---------- 虚拟手型 ----------
+// ---------- 虚拟手型（透明，覆盖在键盘上） ----------
+const HAND_FINGERS = [
+  { name: '左小指', home: 'a' },
+  { name: '左无名指', home: 's' },
+  { name: '左中指', home: 'd' },
+  { name: '左食指', home: 'f' },
+  { name: '右食指', home: 'j' },
+  { name: '右中指', home: 'k' },
+  { name: '右无名指', home: 'l' },
+  { name: '右手小指', home: ';' },
+  { name: '大拇指', home: ' ' },
+];
+
+function keyElementFor(key) {
+  const keys = document.querySelectorAll('#keyboard .key');
+  for (const k of keys) if (k.dataset.key === key) return k;
+  return null;
+}
+
+function keyCenterInKb(key) {
+  const el = keyElementFor(key);
+  if (!el) return null;
+  return { x: el.offsetLeft + el.offsetWidth / 2, y: el.offsetTop + el.offsetHeight / 2 };
+}
+
 function buildHand() {
-  const hand = document.getElementById('hand');
-  if (!hand) return;
-  const shortName = {
-    '左小指': '小指', '左无名指': '无名指', '左中指': '中指', '左食指': '食指',
-    '右食指': '食指', '右中指': '中指', '右无名指': '无名指', '右手小指': '小指',
-    '大拇指': '大拇指（空格）',
-  };
-  const side = (arr) =>
-    '<div class="palm-side">' +
-    arr.map((f) => '<div class="finger" data-finger="' + f + '"><span>' + shortName[f] + '</span></div>').join('') +
-    '</div>';
-  hand.innerHTML =
-    '<div class="hand-row">' + side(['左小指', '左无名指', '左中指', '左食指']) +
-    side(['右食指', '右中指', '右无名指', '右手小指']) + '</div>' +
-    '<div class="hand-thumbs"><div class="finger thumb" data-finger="大拇指"><span>' + shortName['大拇指'] + '</span></div></div>';
+  const kb = document.getElementById('keyboard');
+  if (!kb) return;
+  let overlay = kb.querySelector('.hand-overlay');
+  if (!overlay) {
+    overlay = document.createElement('div');
+    overlay.className = 'hand-overlay';
+    kb.appendChild(overlay);
+  }
+  if (!overlay.querySelector('.hand-palm')) {
+    const palm = document.createElement('div');
+    palm.className = 'hand-palm';
+    overlay.appendChild(palm);
+  }
+  HAND_FINGERS.forEach((f) => {
+    let fe = overlay.querySelector('.hand-finger[data-finger="' + f.name + '"]');
+    if (!fe) {
+      fe = document.createElement('div');
+      fe.className = 'hand-finger';
+      fe.dataset.finger = f.name;
+      fe.innerHTML = '<div class="hf-body"><div class="hf-tip"></div><div class="hf-bar"></div></div>';
+      overlay.appendChild(fe);
+    }
+    fe._home = f.home;
+  });
+  positionFingers();
 }
 
-function highlightHand(fingerName) {
-  const fingers = document.querySelectorAll('#hand .finger');
-  fingers.forEach((f) => {
-    f.classList.remove('active');
-    if (fingerName && f.dataset.finger === fingerName) f.classList.add('active');
+function positionFingers() {
+  const kb = document.getElementById('keyboard');
+  if (!kb) return;
+  const overlay = kb.querySelector('.hand-overlay');
+  if (!overlay) return;
+  overlay.querySelectorAll('.hand-finger').forEach((fe) => {
+    const c = keyCenterInKb(fe._home);
+    if (c) {
+      fe.style.left = c.x + 'px';
+      fe.style.top = c.y + 'px';
+    }
   });
+}
+
+function highlightHand(fingerName, targetKey) {
+  const kb = document.getElementById('keyboard');
+  if (!kb) return;
+  const overlay = kb.querySelector('.hand-overlay');
+  if (!overlay || !fingerName) return;
+  const fe = overlay.querySelector('.hand-finger[data-finger="' + fingerName + '"]');
+  if (!fe) return;
+  let dx = 0, dy = 0;
+  if (targetKey) {
+    const homeC = keyCenterInKb(fe._home);
+    const tgtC = keyCenterInKb(targetKey);
+    if (homeC && tgtC) {
+      dx = tgtC.x - homeC.x;
+      dy = tgtC.y - homeC.y;
+    }
+  }
+  // 先回位，再强制 reflow，让滑动过渡重新生效
+  fe.classList.remove('pressing');
+  fe.style.transform = '';
+  void fe.offsetWidth;
+  if (dx !== 0 || dy !== 0) {
+    fe.style.transform = 'translate(' + dx + 'px,' + dy + 'px)';
+  }
+  fe.classList.add('pressing');
+  clearTimeout(fe._t);
+  fe._t = setTimeout(() => {
+    fe.style.transform = '';
+    fe.classList.remove('pressing');
+  }, 230);
 }
 
 // ---------- 计时器（限时模式） ----------
@@ -428,6 +502,9 @@ function applyKbVisibility() {
   if (lk) lk.style.display = state.kbVisible ? '' : 'none';
   const chk = document.getElementById('kb-hide-check');
   if (chk) chk.checked = !state.kbVisible; // 勾选 = 隐藏
+  if (state.kbVisible && state.view === 'play') {
+    requestAnimationFrame(() => requestAnimationFrame(positionFingers));
+  }
 }
 
 // ---------- 趋势线 ----------
@@ -569,6 +646,7 @@ window.addEventListener('keydown', (e) => {
 function init() {
   buildKeyboard();
   buildHand();
+  window.addEventListener('resize', positionFingers);
   state.kbVisible = localStorage.getItem(KB_VISIBLE_KEY) !== '0';
   applyKbVisibility();
   renderHome();
