@@ -287,3 +287,77 @@ main {
 }
 .key.focus { border-color: var(--green); background: #eafaef; transform: translateY(-2px); }
 .lesson-start { width: 100%; margin-top: 4px; padding: 14px; font-size: 16px; }
+
+/* F/J 定位横线（食指定位条，对应真实键盘的凸起） */
+.key.bump { position: relative; }
+.key.bump::after {
+  content: '';
+  position: absolute;
+  top: 7px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 16px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--muted);
+}
+
+/* ---------- 虚拟手型 ---------- */
+.hand { margin-top: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+.hand-row { display: flex; gap: 56px; }
+.palm-side {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  position: relative;
+  padding-bottom: 26px;
+}
+.palm-side::after {
+  content: '';
+  position: absolute;
+  left: -10px; right: -10px; bottom: 0;
+  height: 26px;
+  background: #f3ddc2;
+  border-radius: 12px;
+  z-index: 0;
+}
+.finger {
+  position: relative;
+  z-index: 1;
+  width: 36px;
+  height: 56px;
+  background: #ffe9cf;
+  border: 2px solid #e8c9a0;
+  border-radius: 10px 10px 6px 6px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  padding-bottom: 5px;
+  font-size: 11px;
+  color: #9a7b53;
+  transition: background 0.1s, transform 0.1s, border-color 0.1s;
+}
+.finger.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+  transform: translateY(-5px);
+}
+.hand-thumbs { display: flex; }
+.finger.thumb {
+  width: auto;
+  height: auto;
+  padding: 9px 20px;
+  border-radius: 12px;
+}
+
+/* ---------- 趋势线 ---------- */
+.trend-chart {
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px;
+  margin-top: 14px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+}
+.trend-chart svg { display: block; width: 100%; height: auto; }
+

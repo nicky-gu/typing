@@ -28,6 +28,7 @@
         <button class="dur-btn" data-dur="300">5 分钟</button>
       </div>
       <div id="level-grid" class="level-grid"></div>
+      <button id="trend-btn" class="btn-primary" style="margin-top:18px;">📈 看看我的进步趋势</button>
     </section>
 
     <section id="lesson-view" class="view" hidden>
@@ -60,6 +61,7 @@
     <section id="play-view" class="view" hidden>
       <div class="metric-bar">
         <button id="back-btn" class="btn-ghost">返回</button>
+        <button id="kb-toggle" class="btn-ghost">键盘：显示</button>
         <div class="metric"><span class="m-label">速度</span><span id="m-wpm" class="m-val">0</span><span class="m-unit">WPM</span></div>
         <div class="metric"><span class="m-label">正确率</span><span id="m-acc" class="m-val">100%</span></div>
         <div class="metric"><span class="m-label">用时</span><span id="m-time" class="m-val">0s</span></div>
@@ -67,7 +69,10 @@
       </div>
       <div id="text-display" class="text-display"></div>
       <div id="finger-hint" class="finger-hint"></div>
-      <div id="keyboard" class="keyboard"></div>
+      <div id="kb-area">
+        <div id="keyboard" class="keyboard"></div>
+        <div id="hand" class="hand"></div>
+      </div>
     </section>
 
     <section id="result-view" class="view" hidden>
@@ -88,6 +93,18 @@
           <button id="retry-btn" class="btn-primary">再练一次</button>
           <button id="home-btn" class="btn-ghost dark">返回选关</button>
         </div>
+      </div>
+    </section>
+
+    <section id="trend-view" class="view" hidden>
+      <div class="lesson-card">
+        <div class="lesson-head">
+          <button id="trend-back" class="btn-ghost">返回</button>
+          <span class="lesson-tag">进步趋势</span>
+        </div>
+        <h2 class="lesson-title">📈 我的打字进步曲线</h2>
+        <div id="trend-summary" class="home-stats"></div>
+        <div id="trend-chart" class="trend-chart"></div>
       </div>
     </section>
   </main>

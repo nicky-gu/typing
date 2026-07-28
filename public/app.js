@@ -1,6 +1,8 @@
 'use strict';
 
 const PROGRESS_KEY = 'typing_progress_v1';
+const SESSIONS_KEY = 'typing_sessions_v1';   // 每次完成的练习记录（趋势线用）
+const KB_VISIBLE_KEY = 'typing_kb_visible_v1'; // 键盘显隐开关状态
 
 const KB_ROWS = [
   ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
@@ -56,6 +58,7 @@ const state = {
   timerId: null,
   totals: { keystrokes: 0, correct: 0, errors: 0 },
   lessonLevelId: null,
+  kbVisible: true,
 };
 
 let audioCtx = null;
@@ -71,6 +74,22 @@ function loadProgress() {
 function saveProgress(p) {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
+  } catch (e) { /* 忽略写入失败 */ }
+}
+
+// 趋势线：每次完成的练习记录
+function loadSessions() {
+  try {
+    return JSON.parse(localStorage.getItem(SESSIONS_KEY)) || [];
+  } catch (e) {
+    return [];
+  }
+}
+function saveSession(rec) {
+  const arr = loadSessions();
+  arr.push(rec);
+  try {
+    localStorage.setItem(SESSIONS_KEY, JSON.stringify(arr.slice(-100)));
   } catch (e) { /* 忽略写入失败 */ }
 }
 
@@ -131,6 +150,7 @@ function showView(name) {
   document.getElementById('lesson-view').hidden = name !== 'lesson';
   document.getElementById('play-view').hidden = name !== 'play';
   document.getElementById('result-view').hidden = name !== 'result';
+  document.getElementById('trend-view').hidden = name !== 'trend';
 }
 
 function renderHome() {
@@ -171,7 +191,7 @@ function buildLessonKeyboard(focus) {
     r.className = 'kb-row';
     row.forEach((k) => {
       const b = document.createElement('div');
-      b.className = 'key' + (focusSet.has(k) ? ' focus' : '');
+      b.className = 'key' + (focusSet.has(k) ? ' focus' : '') + ((k === 'f' || k === 'j') ? ' bump' : '');
       b.dataset.key = k;
       b.textContent = k === ' ' ? '空格' : k;
       r.appendChild(b);
@@ -296,6 +316,36 @@ function highlightKey(key) {
   });
   const hint = document.getElementById('finger-hint');
   hint.textContent = key != null ? '用：' + fingerFor(key) : '';
+  let fname = null;
+  if (key != null && base != null) fname = FINGER[base] || null;
+  highlightHand(fname);
+}
+
+// ---------- 虚拟手型 ----------
+function buildHand() {
+  const hand = document.getElementById('hand');
+  if (!hand) return;
+  const shortName = {
+    '左小指': '小指', '左无名指': '无名指', '左中指': '中指', '左食指': '食指',
+    '右食指': '食指', '右中指': '中指', '右无名指': '无名指', '右手小指': '小指',
+    '大拇指': '大拇指（空格）',
+  };
+  const side = (arr) =>
+    '<div class="palm-side">' +
+    arr.map((f) => '<div class="finger" data-finger="' + f + '"><span>' + shortName[f] + '</span></div>').join('') +
+    '</div>';
+  hand.innerHTML =
+    '<div class="hand-row">' + side(['左小指', '左无名指', '左中指', '左食指']) +
+    side(['右食指', '右中指', '右无名指', '右手小指']) + '</div>' +
+    '<div class="hand-thumbs"><div class="finger thumb" data-finger="大拇指"><span>' + shortName['大拇指'] + '</span></div></div>';
+}
+
+function highlightHand(fingerName) {
+  const fingers = document.querySelectorAll('#hand .finger');
+  fingers.forEach((f) => {
+    f.classList.remove('active');
+    if (fingerName && f.dataset.finger === fingerName) f.classList.add('active');
+  });
 }
 
 // ---------- 计时器（限时模式） ----------
@@ -337,6 +387,14 @@ function endSession() {
   prog.totalSec = (prog.totalSec || 0) + Math.round(m.ms / 1000);
   prog.sessions = (prog.sessions || 0) + 1;
   saveProgress(prog);
+  saveSession({
+    ts: Date.now(),
+    wpm: m.wpm,
+    acc: m.acc,
+    errRate: m.errorRate,
+    level: state.level.id,
+    errors: m.errors,
+  });
   renderResult(m, stars);
 }
 
@@ -362,6 +420,79 @@ function renderResult(m, stars) {
   document.getElementById('result-msg').textContent = msg;
 }
 
+// ---------- 键盘显隐开关 ----------
+function applyKbVisibility() {
+  const area = document.getElementById('kb-area');
+  if (area) area.style.display = state.kbVisible ? '' : 'none';
+  const btn = document.getElementById('kb-toggle');
+  if (btn) btn.textContent = '键盘：' + (state.kbVisible ? '显示' : '隐藏');
+}
+
+// ---------- 趋势线 ----------
+function renderTrend() {
+  const arr = loadSessions();
+  const chart = document.getElementById('trend-chart');
+  const summary = document.getElementById('trend-summary');
+  if (!arr.length) {
+    chart.innerHTML = '';
+    summary.textContent = '还没有练习记录～先去练几关，回来就能看到你的进步曲线啦！';
+    showView('trend');
+    return;
+  }
+  const W = 640, H = 300, padL = 42, padR = 18, padT = 26, padB = 38;
+  const innerW = W - padL - padR, innerH = H - padT - padB;
+  const n = arr.length;
+  const maxWpm = Math.max.apply(null, arr.map((s) => s.wpm).concat([20]));
+  const niceMax = Math.max(10, Math.ceil(maxWpm / 10) * 10);
+  const x = (i) => padL + (n === 1 ? innerW / 2 : (innerW * i) / (n - 1));
+  const yW = (v) => padT + innerH * (1 - v / niceMax);
+  const yA = (v) => padT + innerH * (1 - v / 100);
+
+  let grid = '';
+  for (let g = 0; g <= 4; g++) {
+    const yy = padT + innerH * (1 - g / 4);
+    const wv = Math.round((niceMax * g) / 4);
+    grid += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (W - padR) + '" y2="' + yy + '" stroke="#e6eef6" stroke-width="1"/>';
+    grid += '<text x="' + (padL - 6) + '" y="' + (yy + 4) + '" font-size="10" fill="#7a8aa0" text-anchor="end">' + wv + '</text>';
+  }
+
+  const wPts = arr.map((s, i) => x(i) + ',' + yW(s.wpm)).join(' ');
+  const aPts = arr.map((s, i) => x(i) + ',' + yA(s.acc)).join(' ');
+  const wLine = '<polyline fill="none" stroke="#2f9be0" stroke-width="2.5" points="' + wPts + '"/>';
+  const aLine = '<polyline fill="none" stroke="#3fb96b" stroke-width="2.5" points="' + aPts + '"/>';
+
+  let dots = '';
+  arr.forEach((s, i) => {
+    dots += '<circle cx="' + x(i) + '" cy="' + yW(s.wpm) + '" r="3.5" fill="#2f9be0"/>';
+    dots += '<circle cx="' + x(i) + '" cy="' + yA(s.acc) + '" r="3.5" fill="#3fb96b"/>';
+  });
+
+  let xlab = '';
+  const lab = (i, txt) => '<text x="' + x(i) + '" y="' + (H - padB + 18) + '" font-size="10" fill="#7a8aa0" text-anchor="middle">' + txt + '</text>';
+  xlab += lab(0, '第1次');
+  if (n > 2) xlab += lab(Math.floor(n / 2), '第' + Math.floor(n / 2) + '次');
+  xlab += lab(n - 1, '第' + n + '次');
+
+  const legend =
+    '<rect x="' + padL + '" y="8" width="12" height="12" rx="3" fill="#2f9be0"/>' +
+    '<text x="' + (padL + 18) + '" y="18" font-size="11" fill="#27384a">速度(WPM)</text>' +
+    '<rect x="' + (padL + 110) + '" y="8" width="12" height="12" rx="3" fill="#3fb96b"/>' +
+    '<text x="' + (padL + 128) + '" y="18" font-size="11" fill="#27384a">正确率(%)</text>';
+
+  chart.innerHTML =
+    '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="打字进步趋势">' +
+    grid + wLine + aLine + dots + xlab + legend + '</svg>';
+
+  const avgWpm = Math.round(arr.reduce((a, s) => a + s.wpm, 0) / n);
+  const avgAcc = Math.round(arr.reduce((a, s) => a + s.acc, 0) / n);
+  const first = arr[0], last = arr[n - 1];
+  const trend = last.wpm > first.wpm ? '（↑ 速度进步了！）' : (last.wpm < first.wpm ? '（速度略有波动）' : '');
+  summary.innerHTML =
+    '共 ' + n + ' 次练习 · 平均速度 ' + avgWpm + ' WPM · 平均正确率 ' + avgAcc + '%<br>' +
+    '第一次 ' + first.wpm + ' WPM → 最近一次 ' + last.wpm + ' WPM ' + trend;
+  showView('trend');
+}
+
 // ---------- 屏幕键盘 ----------
 function buildKeyboard() {
   const kb = document.getElementById('keyboard');
@@ -371,7 +502,7 @@ function buildKeyboard() {
     r.className = 'kb-row';
     row.forEach((k) => {
       const b = document.createElement('div');
-      b.className = 'key';
+      b.className = 'key' + ((k === 'f' || k === 'j') ? ' bump' : '');
       b.dataset.key = k;
       b.textContent = k === ' ' ? '空格' : k;
       r.appendChild(b);
@@ -382,7 +513,7 @@ function buildKeyboard() {
   symRow.className = 'kb-row';
   KB_SYMBOLS.forEach((k) => {
     const b = document.createElement('div');
-    b.className = 'key';
+    b.className = 'key' + ((k === 'f' || k === 'j') ? ' bump' : '');
     b.dataset.key = k;
     b.textContent = k;
     symRow.appendChild(b);
@@ -435,6 +566,9 @@ window.addEventListener('keydown', (e) => {
 // ---------- 事件绑定 ----------
 function init() {
   buildKeyboard();
+  buildHand();
+  state.kbVisible = localStorage.getItem(KB_VISIBLE_KEY) !== '0';
+  applyKbVisibility();
   renderHome();
 
   document.getElementById('sound-toggle').addEventListener('click', () => {
@@ -446,9 +580,24 @@ function init() {
   document.getElementById('reset-btn').addEventListener('click', () => {
     if (confirm('确定要清空所有练习进度吗？')) {
       localStorage.removeItem(PROGRESS_KEY);
+      localStorage.removeItem(SESSIONS_KEY);
       renderHome();
     }
   });
+
+  const kbToggle = document.getElementById('kb-toggle');
+  if (kbToggle) {
+    kbToggle.addEventListener('click', () => {
+      state.kbVisible = !state.kbVisible;
+      try { localStorage.setItem(KB_VISIBLE_KEY, state.kbVisible ? '1' : '0'); } catch (e) {}
+      applyKbVisibility();
+    });
+  }
+
+  const trendBtn = document.getElementById('trend-btn');
+  if (trendBtn) trendBtn.addEventListener('click', renderTrend);
+  const trendBack = document.getElementById('trend-back');
+  if (trendBack) trendBack.addEventListener('click', renderHome);
 
   document.getElementById('back-btn').addEventListener('click', () => {
     stopTimer();
