@@ -670,14 +670,29 @@ function buildKeyboard() {
   state.keyEls = Array.from(kb.querySelectorAll('.key'));
 }
 
-// ---------- 失焦保护：练习中切走窗口/失去焦点时显示遮罩，避免误触快捷键 ----------
-function setFocusOverlay(show) {
-  const ov = document.getElementById('focus-overlay');
-  if (ov) ov.hidden = !show;
-}
+// ---------- 失焦保护：切走窗口时暂停计时并在提示行显示一行小提示（不遮挡题目） ----------
+let pausedAt = null; // 失焦暂停时记录暂停时刻，回来补回计时时长
 
 window.addEventListener('blur', () => {
-  if (state.view === 'play' && !state.finished) setFocusOverlay(true);
+  if (state.view !== 'play' || state.finished || !state.startTime) return;
+  if (pausedAt === null) pausedAt = Date.now();
+  stopTimer();
+  const hint = document.getElementById('finger-hint');
+  if (hint) hint.textContent = '⏸ 已暂停，点一下这里或任意键继续打字';
+});
+
+window.addEventListener('focus', () => {
+  if (pausedAt === null) return;
+  const gap = Date.now() - pausedAt;
+  pausedAt = null;
+  // 把暂停那段时间补回来，保证用时不被切走的时间拉长
+  if (state.startTime) state.startTime += gap;
+  if (state.deadline) state.deadline += gap;
+  if (state.view === 'play' && !state.finished) {
+    if (state.duration > 0) startTimer();
+    renderText();
+    updateMetrics();
+  }
 });
 
 // ---------- 输入处理 ----------
@@ -693,6 +708,14 @@ window.addEventListener('keydown', (e) => {
   }
 
   if (e.key.length === 1) {
+    // 保险：若仍处于失焦暂停状态（focus 事件未触发），按键时先补回暂停时长
+    if (pausedAt !== null) {
+      const gap = Date.now() - pausedAt;
+      pausedAt = null;
+      if (state.startTime) state.startTime += gap;
+      if (state.deadline) state.deadline += gap;
+      if (state.duration > 0) startTimer();
+    }
     if (state.startTime === null) {
       state.startTime = Date.now();
       if (state.duration > 0) startTimer();
@@ -779,14 +802,6 @@ function init() {
     stopTimer();
     renderHome();
   });
-
-  const focusOv = document.getElementById('focus-overlay');
-  if (focusOv) {
-    focusOv.addEventListener('click', () => {
-      setFocusOverlay(false);
-      window.focus();
-    });
-  }
 }
 
 document.addEventListener('DOMContentLoaded', init);
