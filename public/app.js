@@ -4,15 +4,18 @@ const PROGRESS_KEY = 'typing_progress_v1';
 const SESSIONS_KEY = 'typing_sessions_v1';   // 每次完成的练习记录（趋势线用）
 const KB_VISIBLE_KEY = 'typing_kb_visible_v1'; // 键盘显隐开关状态
 
-const KB_ROWS = [
-  ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', ';'],
-  ['z', 'x', 'c', 'v', 'b', 'n', 'm'],
-];
+// 组合键小工具：主字符 + 上档字符（用于显示数字与符号共用同一颗键的传统布局）
+function kPair(b, s) { return b + (s || ''); }
 
-// 数字行下方的常用符号（小键盘提示用）
-const KB_SYMBOLS = [',', '.', "'", '"', ';', ':', '?', '!', '(', ')', '[', ']', '-', '=', '@', '#'];
+// 传统英文键盘布局：数字与符号共用同一颗键（! 和 1、@ 和 2 …），其余符号归位到各自真实位置
+const KB_ROWS = [
+  [kPair('1', '!'), kPair('2', '@'), kPair('3', '#'), kPair('4', '$'), kPair('5', '%'),
+   kPair('6', '^'), kPair('7', '&'), kPair('8', '*'), kPair('9', '('), kPair('0', ')'),
+   kPair('-', '_'), kPair('=', '+')],
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', kPair('[', '{'), kPair(']', '}')],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l', kPair(';', ':'), kPair("'", '"')],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm', kPair(',', '<'), kPair('.', '>'), kPair('/', '?')],
+];
 
 // 每个键对应的手指（标准指法，传统 QWERTY 英文键盘）
 const FINGER = {
@@ -26,11 +29,13 @@ const FINGER = {
   // 数字（与上方符号同键，手指一致）
   '1': '左手小指', '2': '左无名指', '3': '左中指', '4': '左食指', '5': '左食指',
   '6': '右食指', '7': '右食指', '8': '右中指', '9': '右无名指', '0': '右小指',
-  // 常用符号
-  ',': '右食指', '.': '右食指', '/': '右食指', "'": '右手小指', '[': '右小指',
-  ']': '右小指', '(': '右小指', ')': '右小指', '-': '右小指', '=': '右小指',
-  ':': '右小指', '?': '右食指', '"': '右手小指', '{': '右小指', '}': '右小指',
-  '+': '右小指',
+  // 常用符号（含上档符号，均按主字符所在键的手指）
+  ',': '右食指', '.': '右食指', '/': '右食指', '<': '右食指', '>': '右食指', '?': '右食指',
+  "'": '右手小指', '"': '右手小指',
+  '[': '右小指', ']': '右小指', '{': '右小指', '}': '右小指',
+  '(': '右小指', ')': '右小指', '-': '右小指', '_': '右小指',
+  '=': '右小指', '+': '右小指', '\\': '右小指', '|': '右小指',
+  ':': '右小指',
   '!': '左手小指', '@': '左无名指', '#': '左中指', '$': '左食指', '%': '左食指',
   '^': '右食指', '&': '右食指', '*': '右中指', ' ': '大拇指',
 };
@@ -184,41 +189,57 @@ function renderHome() {
   showView('home');
 }
 
+// ---------- 屏幕键盘通用渲染 ----------
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+}
+
+// 生成一颗键的 DOM：composite 为组合键（如 "1!"），单字符键正常显示，组合键上档符号在上、主字符在下
+function makeKeyEl(composite, opts) {
+  opts = opts || {};
+  const b = document.createElement('div');
+  let cls = 'key';
+  if (opts.bump) cls += ' bump';
+  if (opts.focus) cls += ' focus';
+  b.className = cls;
+  b.dataset.key = composite;
+  if (composite === ' ') {
+    b.classList.add('space');
+    b.innerHTML = '<span class="k-base">空格</span>';
+  } else if (composite.length === 1) {
+    b.innerHTML = '<span class="k-base">' + escapeHtml(composite) + '</span>';
+  } else {
+    const base = composite[0];
+    const shift = composite.slice(1);
+    b.innerHTML = '<span class="k-shift">' + escapeHtml(shift) + '</span>'
+      + '<span class="k-base">' + escapeHtml(base) + '</span>';
+  }
+  return b;
+}
+
 // ---------- 课前教材（小课堂） ----------
 function buildLessonKeyboard(focus) {
   const kb = document.getElementById('lesson-keyboard');
   kb.innerHTML = '';
   const focusSet = new Set(focus || []);
-  const renderRow = (row) => {
+  // 焦点匹配：组合键包含焦点字符、或被焦点组合键直接命中都算
+  const isFocus = (comp) => focusSet.has(comp) || Array.from(comp).some((c) => focusSet.has(c));
+  KB_ROWS.forEach((row) => {
     const r = document.createElement('div');
     r.className = 'kb-row';
-    row.forEach((k) => {
-      const b = document.createElement('div');
-      b.className = 'key' + (focusSet.has(k) ? ' focus' : '') + ((k === 'f' || k === 'j') ? ' bump' : '');
-      b.dataset.key = k;
-      b.textContent = k === ' ' ? '空格' : k;
-      r.appendChild(b);
+    row.forEach((kcomp) => {
+      r.appendChild(makeKeyEl(kcomp, {
+        bump: (kcomp === 'f' || kcomp === 'j'),
+        focus: isFocus(kcomp),
+      }));
     });
     kb.appendChild(r);
-  };
-  KB_ROWS.forEach(renderRow);
-  const symRow = document.createElement('div');
-  symRow.className = 'kb-row';
-  KB_SYMBOLS.forEach((k) => {
-    const b = document.createElement('div');
-    b.className = 'key' + (focusSet.has(k) ? ' focus' : '');
-    b.dataset.key = k;
-    b.textContent = k;
-    symRow.appendChild(b);
   });
-  kb.appendChild(symRow);
   const spaceRow = document.createElement('div');
   spaceRow.className = 'kb-row';
-  const sp = document.createElement('div');
-  sp.className = 'key space' + (focusSet.has(' ') ? ' focus' : '');
-  sp.dataset.key = ' ';
-  sp.textContent = '空格';
-  spaceRow.appendChild(sp);
+  spaceRow.appendChild(makeKeyEl(' ', { focus: isFocus(' ') }));
   kb.appendChild(spaceRow);
 }
 
@@ -315,7 +336,9 @@ function highlightKey(key) {
     : (key >= 'A' && key <= 'Z' ? key.toLowerCase() : key);
   keys.forEach((k) => {
     k.classList.remove('active');
-    if (base != null && k.dataset.key === base) k.classList.add('active');
+    if (base != null && (k.dataset.key === base || (k.dataset.key && k.dataset.key.includes(base)))) {
+      k.classList.add('active');
+    }
   });
   const hint = document.getElementById('finger-hint');
   hint.textContent = key != null ? '用：' + fingerFor(key) : '';
@@ -339,7 +362,10 @@ const HAND_FINGERS = [
 
 function keyElementFor(key) {
   const keys = document.querySelectorAll('#keyboard .key');
-  for (const k of keys) if (k.dataset.key === key) return k;
+  for (const k of keys) {
+    const dk = k.dataset.key || '';
+    if (dk === key || dk.includes(key)) return k;
+  }
   return null;
 }
 
@@ -579,32 +605,14 @@ function buildKeyboard() {
   KB_ROWS.forEach((row) => {
     const r = document.createElement('div');
     r.className = 'kb-row';
-    row.forEach((k) => {
-      const b = document.createElement('div');
-      b.className = 'key' + ((k === 'f' || k === 'j') ? ' bump' : '');
-      b.dataset.key = k;
-      b.textContent = k === ' ' ? '空格' : k;
-      r.appendChild(b);
+    row.forEach((kcomp) => {
+      r.appendChild(makeKeyEl(kcomp, { bump: (kcomp === 'f' || kcomp === 'j') }));
     });
     kb.appendChild(r);
   });
-  const symRow = document.createElement('div');
-  symRow.className = 'kb-row';
-  KB_SYMBOLS.forEach((k) => {
-    const b = document.createElement('div');
-    b.className = 'key' + ((k === 'f' || k === 'j') ? ' bump' : '');
-    b.dataset.key = k;
-    b.textContent = k;
-    symRow.appendChild(b);
-  });
-  kb.appendChild(symRow);
   const spaceRow = document.createElement('div');
   spaceRow.className = 'kb-row';
-  const sp = document.createElement('div');
-  sp.className = 'key space';
-  sp.dataset.key = ' ';
-  sp.textContent = '空格';
-  spaceRow.appendChild(sp);
+  spaceRow.appendChild(makeKeyEl(' '));
   kb.appendChild(spaceRow);
 }
 
