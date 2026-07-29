@@ -610,32 +610,32 @@ function renderTrend() {
   for (let g = 0; g <= 4; g++) {
     const yy = padT + innerH * (1 - g / 4);
     const wv = Math.round((niceMax * g) / 4);
-    grid += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (W - padR) + '" y2="' + yy + '" stroke="#e6eef6" stroke-width="1"/>';
-    grid += '<text x="' + (padL - 6) + '" y="' + (yy + 4) + '" font-size="10" fill="#7a8aa0" text-anchor="end">' + wv + '</text>';
+    grid += '<line x1="' + padL + '" y1="' + yy + '" x2="' + (W - padR) + '" y2="' + yy + '" stroke="#2c4253" stroke-width="1"/>';
+    grid += '<text x="' + (padL - 6) + '" y="' + (yy + 4) + '" font-size="10" fill="#8fa7b8" text-anchor="end">' + wv + '</text>';
   }
 
   const wPts = arr.map((s, i) => x(i) + ',' + yW(s.wpm)).join(' ');
   const aPts = arr.map((s, i) => x(i) + ',' + yA(s.acc)).join(' ');
-  const wLine = '<polyline fill="none" stroke="#2f9be0" stroke-width="2.5" points="' + wPts + '"/>';
-  const aLine = '<polyline fill="none" stroke="#3fb96b" stroke-width="2.5" points="' + aPts + '"/>';
+  const wLine = '<polyline fill="none" stroke="#ffb43b" stroke-width="2.5" points="' + wPts + '"/>';
+  const aLine = '<polyline fill="none" stroke="#37d491" stroke-width="2.5" points="' + aPts + '"/>';
 
   let dots = '';
   arr.forEach((s, i) => {
-    dots += '<circle cx="' + x(i) + '" cy="' + yW(s.wpm) + '" r="3.5" fill="#2f9be0"/>';
-    dots += '<circle cx="' + x(i) + '" cy="' + yA(s.acc) + '" r="3.5" fill="#3fb96b"/>';
+    dots += '<circle cx="' + x(i) + '" cy="' + yW(s.wpm) + '" r="3.5" fill="#ffb43b"/>';
+    dots += '<circle cx="' + x(i) + '" cy="' + yA(s.acc) + '" r="3.5" fill="#37d491"/>';
   });
 
   let xlab = '';
-  const lab = (i, txt) => '<text x="' + x(i) + '" y="' + (H - padB + 18) + '" font-size="10" fill="#7a8aa0" text-anchor="middle">' + txt + '</text>';
+  const lab = (i, txt) => '<text x="' + x(i) + '" y="' + (H - padB + 18) + '" font-size="10" fill="#8fa7b8" text-anchor="middle">' + txt + '</text>';
   xlab += lab(0, '第1次');
   if (n > 2) xlab += lab(Math.floor(n / 2), '第' + Math.floor(n / 2) + '次');
   xlab += lab(n - 1, '第' + n + '次');
 
   const legend =
-    '<rect x="' + padL + '" y="8" width="12" height="12" rx="3" fill="#2f9be0"/>' +
-    '<text x="' + (padL + 18) + '" y="18" font-size="11" fill="#27384a">速度(WPM)</text>' +
-    '<rect x="' + (padL + 110) + '" y="8" width="12" height="12" rx="3" fill="#3fb96b"/>' +
-    '<text x="' + (padL + 128) + '" y="18" font-size="11" fill="#27384a">正确率(%)</text>';
+    '<rect x="' + padL + '" y="8" width="12" height="12" rx="3" fill="#ffb43b"/>' +
+    '<text x="' + (padL + 18) + '" y="18" font-size="11" fill="#eaf4ee">速度(WPM)</text>' +
+    '<rect x="' + (padL + 110) + '" y="8" width="12" height="12" rx="3" fill="#37d491"/>' +
+    '<text x="' + (padL + 128) + '" y="18" font-size="11" fill="#eaf4ee">正确率(%)</text>';
 
   chart.innerHTML =
     '<svg viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="打字进步趋势">' +
